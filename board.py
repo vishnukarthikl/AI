@@ -1,11 +1,12 @@
 SIZE = 5
-EMPTY = 'x'
+EMPTY = '*'
 
 
 class Board:
     def __init__(self):
+        self.size = SIZE
         self.board = [[''] * SIZE for _ in range(SIZE)]
-        self.for_each_cell(lambda (i, j), cell: self.set_cell((i, j), Status(0, 'x', (i, j))))
+        self.for_each_cell(lambda (i, j), cell: self.set_cell((i, j), Status(0, EMPTY, (i, j))))
 
     def set_cell(self, location, status):
         self.board[location[0]][location[1]] = status
@@ -17,7 +18,7 @@ class Board:
         new_board = self.clone()
         to_raid = new_board.cell_at(location)
         if (not new_board.adjacent_cells(location, player)) or to_raid.is_occupied():
-            raise Exception("Can't raid at " + str(location) + " by player " + player)
+            return new_board
         new_board.set_player(location, player)
         opponent_cells = new_board.adjacent_opponent_cells(location, player)
         for opponent_cell in opponent_cells:
@@ -29,7 +30,7 @@ class Board:
         new_board = self.clone()
         to_sneak = new_board.cell_at(location)
         if to_sneak.is_occupied():
-            raise Exception("Can't sneak at " + str(location) + " by player " + player)
+            return new_board
         if new_board.adjacent_cells(location, player):
             return new_board.raid(location, player)
 
@@ -44,9 +45,8 @@ class Board:
     def __str__(self):
         str = ""
         for row in self.board:
-            str += "|"
             for cell in row:
-                str += (cell.__str__() + "|")
+                str += (cell.__str__())
             str += '\n'
         return str
 
@@ -82,15 +82,17 @@ class Board:
                 adjacent.append(cell)
         return adjacent
 
-    def evaulate(self, player):
+    def evaluate(self, player):
         player_score = reduce(
                 lambda acc, row: acc + reduce(
-                        lambda row_acc, cell: cell.value + row_acc if cell.occupied_by == player else row_acc, row,
+                        lambda row_acc, cell: cell.value + row_acc if cell.player == player else row_acc, row,
                         0),
                 self.board, 0)
         opponent_score = reduce(
                 lambda acc, row: acc + reduce(
-                        lambda row_acc, cell: cell.value + row_acc if cell.occupied_by != player else row_acc, row,
+                        lambda row_acc,
+                               cell: cell.value + row_acc if cell.is_occupied() and cell.player != player else row_acc,
+                        row,
                         0),
                 self.board, 0)
         return player_score - opponent_score
