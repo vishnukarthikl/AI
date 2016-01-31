@@ -1,16 +1,29 @@
 SIZE = 5
+EMPTY = 'x'
 
 
 class Board:
     def __init__(self):
         self.board = [[''] * SIZE for _ in range(SIZE)]
-        self.for_each_cell(lambda (i, j), cell: self.set_cell((i, j), Status(0, '', (i, j))))
+        self.for_each_cell(lambda (i, j), cell: self.set_cell((i, j), Status(0, 'x', (i, j))))
 
     def set_cell(self, location, status):
         self.board[location[0]][location[1]] = status
 
     def set_player(self, location, player):
         (self.board[location[0]][location[1]]).player = player
+
+    def raid(self, location, player):
+        new_board = self.clone()
+        to_raid = new_board.cell_at(location)
+        if (not new_board.adjacent_cells(location, player)) or to_raid.is_occupied():
+            raise Exception("Can't raid at " + str(location) + " by player " + player)
+        new_board.set_player(location, player)
+        opponent_cells = new_board.adjacent_opponent_cells(location, player)
+        for opponent_cell in opponent_cells:
+            new_board.set_player(opponent_cell.location, player)
+
+        return new_board
 
     def for_each_cell(self, fn):
         for i in range(SIZE):
@@ -32,9 +45,20 @@ class Board:
             for j in range(SIZE):
                 location = (i, j)
                 cell = self.cell_at(location)
-                if cell and cell.player == '' and self.adjacent_cells(location, player):
+                if cell and (not cell.is_occupied()) and self.adjacent_cells(location, player):
                     neighbors.append(cell)
         return neighbors
+
+    def adjacent_opponent_cells(self, location, player):
+        i = location[0]
+        j = location[1]
+        adjacent = []
+        possible_cells = [self.cell_at((i - 1, j)), self.cell_at((i + 1, j)), self.cell_at((i, j - 1)),
+                          self.cell_at((i, j + 1))]
+        for cell in possible_cells:
+            if cell and cell.player != player and cell.is_occupied():
+                adjacent.append(cell)
+        return adjacent
 
     def adjacent_cells(self, location, player):
         i = location[0]
@@ -68,6 +92,13 @@ class Board:
 
         return self.board[i][j]
 
+    def clone(self):
+        board = Board()
+        for i in range(SIZE):
+            for j in range(SIZE):
+                board.set_cell((i, j), self.cell_at((i, j)).clone())
+        return board
+
 
 class Status:
     def __init__(self, value, player, location):
@@ -75,8 +106,14 @@ class Status:
         self.player = player
         self.location = location
 
-    def change_occupied(self, new_occupant):
-        self.player = new_occupant
+    def change_player(self, player):
+        self.player = player
+
+    def is_occupied(self):
+        return self.player != EMPTY
 
     def __str__(self):
-        return self.player + str(self.location)
+        return self.player
+
+    def clone(self):
+        return Status(self.value, self.player, self.location)
