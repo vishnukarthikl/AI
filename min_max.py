@@ -32,7 +32,8 @@ class MinMaxStrategy:
             self.trace.append((state.location_name(move), current_depth, next_state_evaluation))
             return next_state_evaluation
         else:
-            if current_depth % 2 == 1:
+            should_minimize = current_depth % 2 == 1
+            if should_minimize:
                 value = float('Infinity')
             else:
                 value = float('-Infinity')
@@ -44,7 +45,7 @@ class MinMaxStrategy:
                 next_state_evaluation = self.traverse_next_level(board.sneak(move, player), next_move,
                                                                  current_depth + 1,
                                                                  toggle_player(player))
-                if current_depth % 2 == 1:
+                if should_minimize:
                     if next_state_evaluation < value:
                         value = next_state_evaluation
                 else:

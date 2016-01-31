@@ -1,5 +1,6 @@
 import sys
 
+from alpha_beta import AlphaBetaStrategy
 from board import Board
 from board import SIZE
 from board import Status
@@ -13,17 +14,30 @@ def write_next_state(board, file):
         f.writelines(board.__str__())
 
 
-def write_trace_log(move_trace, file):
+def transform_inf(value):
+    if value == float('-inf'):
+        return '-Infinity'
+    elif value == float('inf'):
+        return 'Infinity'
+    else:
+        return value
+
+
+def write_minmax_trace_log(move_trace, file):
     with open(file, 'w') as f:
         f.truncate()
         f.write('Node,Depth,Value\n')
         for move in move_trace:
-            if move[2] == float('-inf'):
-                f.write("%s,%s,-Infinity\n" % (move[0], move[1]))
-            elif move[2] == float('inf'):
-                f.write("%s,%s,Infinity\n" % (move[0], move[1]))
-            else:
-                f.write("%s,%s,%s\n" % (move[0], move[1], move[2]))
+            f.write("%s,%s,%s\n" % (move[0], move[1], transform_inf(move[2])))
+
+
+def write_alphabeta_trace_log(move_trace, file):
+    with open(file, 'w') as f:
+        f.truncate()
+        f.write('Node,Depth,Value,Alpha,Beta\n')
+        for move in move_trace:
+            f.write("%s,%s,%s,%s,%s\n" % (
+                move[0], move[1], transform_inf(move[2]), transform_inf(move[3]), transform_inf(move[4])))
 
 
 input_file = sys.argv[2]
@@ -47,8 +61,10 @@ if search_strategy != '4':
     elif search_strategy == '2':
         move_trace, next_state = MinMaxStrategy(board, player, depth).move()
         write_next_state(next_state, 'next_state.txt')
-        write_trace_log(move_trace, 'traverse_log.txt')
+        write_minmax_trace_log(move_trace, 'traverse_log.txt')
     elif search_strategy == '3':
-        print "Alpha beta"
+        move_trace, next_state = AlphaBetaStrategy(board, player, depth).move()
+        write_next_state(next_state, 'next_state.txt')
+        write_alphabeta_trace_log(move_trace, 'traverse_log.txt')
 else:
     print search_strategy + " not handled"
