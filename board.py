@@ -3,17 +3,19 @@ SIZE = 5
 
 class Board:
     def __init__(self):
-        self.board = [[''] * SIZE for i in range(SIZE)]
-        for i in range(SIZE):
-            for j in range(SIZE):
-                self.set_cell((i, j), Status(0, '', (i, j)))
-        print self.board
+        self.board = [[''] * SIZE for _ in range(SIZE)]
+        self.for_each_cell(lambda (i, j), cell: self.set_cell((i, j), Status(0, '', (i, j))))
 
     def set_cell(self, location, status):
         self.board[location[0]][location[1]] = status
 
     def set_player(self, location, player):
         (self.board[location[0]][location[1]]).player = player
+
+    def for_each_cell(self, fn):
+        for i in range(SIZE):
+            for j in range(SIZE):
+                fn((i, j), self.cell_at((i, j)))
 
     def __str__(self):
         str = ""
@@ -30,8 +32,8 @@ class Board:
             for j in range(SIZE):
                 location = (i, j)
                 cell = self.cell_at(location)
-                if cell and cell.player == '':
-                    neighbors += self.adjacent_cells(location, player)
+                if cell and cell.player == '' and self.adjacent_cells(location, player):
+                    neighbors.append(cell)
         return neighbors
 
     def adjacent_cells(self, location, player):
@@ -42,7 +44,7 @@ class Board:
                           self.cell_at((i, j + 1))]
         for cell in possible_cells:
             if cell and cell.player == player:
-                adjacent.append(self.cell_at(location))
+                adjacent.append(cell)
         return adjacent
 
     def evaulate(self, player):
