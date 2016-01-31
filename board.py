@@ -42,6 +42,13 @@ class Board:
             for j in range(SIZE):
                 fn((i, j), self.cell_at((i, j)))
 
+    def all_cells(self):
+        cells = []
+        for i in range(SIZE):
+            for j in range(SIZE):
+                cells.append(self.cell_at((i, j)))
+        return cells
+
     def __str__(self):
         str = ""
         for row in self.board:
@@ -129,6 +136,9 @@ class Board:
                 if self.sneak((i, j), player) != self:
                     moves.append((i, j))
         return moves
+
+    def is_over(self):
+        return reduce(lambda acc, cell: acc and cell.is_occupied(), self.all_cells(), True)
 
 
 class Status:

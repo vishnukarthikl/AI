@@ -6,25 +6,24 @@ def toggle_player(player):
 
 
 class AlphaBetaStrategy:
-    def __init__(self, board, player, depth):
-        self.board = board
+    def __init__(self, player, depth):
         self.player = player
         self.depth = depth
         self.trace = []
 
-    def move(self):
-        next_best_move = self.board
+    def move(self, board):
+        next_best_move = board
         alpha = float('-Infinity')
         beta = float('Infinity')
         value = alpha
         self.trace = [('root', 0, value, alpha, beta)]
-        moves = self.board.valid_moves(self.player)
+        moves = board.valid_moves(self.player)
         for move in moves:
-            next_level_evaluation = self.traverse_next_level(self.board, move, 1, self.player, alpha,
+            next_level_evaluation = self.traverse_next_level(board, move, 1, self.player, alpha,
                                                              beta)
             if next_level_evaluation > value:
                 value = next_level_evaluation
-                next_best_move = self.board.sneak(move, self.player)
+                next_best_move = board.sneak(move, self.player)
                 alpha = value
 
             self.trace.append(('root', 0, value, alpha, beta))

@@ -6,22 +6,21 @@ def toggle_player(player):
 
 
 class MinMaxStrategy:
-    def __init__(self, board, player, depth):
-        self.board = board
+    def __init__(self, player, depth):
         self.player = player
         self.depth = depth
         self.trace = []
 
-    def move(self):
-        next_best_move = self.board
+    def move(self, board):
+        next_best_move = board
         current_max = float('-Infinity')
         self.trace = [('root', 0, current_max)]
-        moves = self.board.valid_moves(self.player)
+        moves = board.valid_moves(self.player)
         for move in moves:
-            next_level_evaluation = self.traverse_next_level(self.board, move, 1, self.player)
+            next_level_evaluation = self.traverse_next_level(board, move, 1, self.player)
             if next_level_evaluation > current_max:
                 current_max = next_level_evaluation
-                next_best_move = self.board.sneak(move, self.player)
+                next_best_move = board.sneak(move, self.player)
             self.trace.append(('root', 0, current_max))
         return self.trace, next_best_move
 
