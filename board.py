@@ -50,6 +50,16 @@ class Board:
             str += '\n'
         return str
 
+    def __eq__(self, other):
+        return self.__str__() == other.__str__()
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def location_name(self, location):
+        rows = ['A', 'B', 'C', 'D', 'E']
+        return rows[location[1]] + str(location[0] + 1)
+
     def free_neighbors(self, player):
         neighbors = []
         for i in range(SIZE):
@@ -112,6 +122,14 @@ class Board:
                 board.set_cell((i, j), self.cell_at((i, j)).clone())
         return board
 
+    def valid_moves(self, player):
+        moves = []
+        for i in range(SIZE):
+            for j in range(SIZE):
+                if self.sneak((i, j), player) != self:
+                    moves.append((i, j))
+        return moves
+
 
 class Status:
     def __init__(self, value, player, location):
@@ -130,3 +148,6 @@ class Status:
 
     def clone(self):
         return Status(self.value, self.player, self.location)
+
+    def __eq__(self, other):
+        return self.player == other.player
