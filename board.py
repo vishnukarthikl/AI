@@ -25,6 +25,17 @@ class Board:
 
         return new_board
 
+    def sneak(self, location, player):
+        new_board = self.clone()
+        to_sneak = new_board.cell_at(location)
+        if to_sneak.is_occupied():
+            raise Exception("Can't sneak at " + str(location) + " by player " + player)
+        if new_board.adjacent_cells(location, player):
+            return new_board.raid(location, player)
+
+        new_board.set_player(location, player)
+        return new_board
+
     def for_each_cell(self, fn):
         for i in range(SIZE):
             for j in range(SIZE):

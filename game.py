@@ -15,4 +15,14 @@ new_board = new_board.raid((0, 1), '1')
 new_board = new_board.raid((1, 1), '1')
 new_board = new_board.raid((2, 1), '1')
 new_board = new_board.raid((2, 2), '2')
-print new_board
+
+# print new_board
+# new_board = new_board.sneak((3, 4), '2')
+# print new_board
+
+board = Board()
+board = board.sneak((0, 0), '1')
+board = board.sneak((0, 1), '2')
+board = board.raid((1, 1), '2')
+board = board.sneak((1, 0), '2')
+print board
