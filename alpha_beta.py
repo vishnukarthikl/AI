@@ -36,6 +36,9 @@ class AlphaBetaStrategy:
             self.trace.append((state.location_name(move), current_depth, next_state_evaluation, alpha, beta))
             return next_state_evaluation
         else:
+            if state.is_over():
+                return state.evaluate(toggle_player(player))
+
             should_minimize = current_depth % 2 == 1
             if should_minimize:
                 value = float('Infinity')

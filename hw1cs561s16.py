@@ -93,5 +93,5 @@ else:
     players = [get_strategy(lines[2].strip(), lines[1].strip(), int(lines[3].strip())),
                get_strategy(lines[5].strip(), lines[4].strip(), int(lines[6].strip()))]
     board = get_board_input(lines, 7)
-    states = GameSimulator(board, players).play()
+    states, final_state = GameSimulator(board, players).play()
     write_states(states, 'trace_state.txt')

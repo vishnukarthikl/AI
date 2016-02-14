@@ -140,6 +140,12 @@ class Board:
     def is_over(self):
         return reduce(lambda acc, cell: acc and cell.is_occupied(), self.all_cells(), True)
 
+    def winner(self):
+        if self.evaluate('X') > 0:
+            return 'X'
+        else:
+            return 'O'
+
 
 class Status:
     def __init__(self, value, player, location):
