@@ -1,6 +1,6 @@
 import re
 import sys
-from itertools import chain, imap
+from itertools import chain, imap, product
 
 
 def flatmap(f, items):
@@ -106,16 +106,39 @@ class InferenceResolver:
         to_resolve = dependent.conclusion
         if len(dependent.premise) == 0:
             for i, parameter in enumerate(to_resolve.variables):
-                if to_resolve.is_constant(parameter) and to_resolve.variables[i] != query.variables[i]:
+                if to_resolve.is_constant(parameter) and to_resolve.variables[i] != scope[query.variables[i]]:
                     return False
             return True
         else:
             for i, parameter in enumerate(to_resolve.variables):
                 if not to_resolve.is_constant(parameter):
-                    scope[parameter] = query.variables[i]
+                    if query.is_constant(query.variables[i]):
+                        scope[parameter] = query.variables[i]
+                    else:
+                        scope[parameter] = scope[query.variables[i]]
 
             for premise in dependent.premise:
-                is_valid = self.validate(premise, scope.copy())
+                new_scope = {}
+                unknown_arguments = []
+                for argument in premise.variables:
+                    if argument in scope and not premise.is_constant(argument):
+                        new_scope[argument] = scope[argument]
+                    else:
+                        unknown_arguments.append(argument)
+                if len(unknown_arguments) == 0:
+                    is_valid = self.validate(premise, new_scope)
+                else:
+                    generated_scope = new_scope.copy()
+                    is_valid = False
+                    all_constants = self.kb.constants
+                    combinations = product(all_constants, repeat=len(unknown_arguments))
+                    for combination in combinations:
+                        for i, unknown_argument in enumerate(unknown_arguments):
+                            generated_scope[unknown_argument] = combination[i]
+                        is_valid = self.validate(premise, generated_scope)
+                        if is_valid:
+                            break
+
                 if not is_valid:
                     return False
             return True
