@@ -123,18 +123,15 @@ class InferenceResolver:
         for dependent in dependents:
             to_resolve = dependent.conclusion
             if len(dependent.premise) == 0:
-                is_valid = True
                 for i, parameter in enumerate(to_resolve.variables):
                     if to_resolve.is_constant(parameter):
                         if not query.is_constant(query.variables[i]):
                             if parameter != scope[query.variables[i]]:
-                                is_valid = False
+                                return False
                         else:
                             if parameter != query.variables[i]:
-                                is_valid = False
-                if is_valid:
-                    return True
-
+                                return False
+                return True
             else:
                 resolved_scope = self.resolve_variables(query, to_resolve, scope)
                 valid_scopes = [{}]
