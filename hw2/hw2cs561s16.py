@@ -83,6 +83,13 @@ def all_same(variable_assignment):
     return len(set(variable_assignment)) == 1
 
 
+def assignment_valid(variable_assignment):
+    for key, value in variable_assignment.items():
+        if not all_same(value):
+            return False
+    return True
+
+
 class InferenceResolver:
     def __init__(self, knowledge_base):
         self.kb = knowledge_base
@@ -101,82 +108,98 @@ class InferenceResolver:
         else:
             for query in queries:
                 can_resolve = self.validate(query, {})
-            if not can_resolve:
-                return False
+                if not can_resolve:
+                    return False
             return True
 
     def validate(self, query, scope):
-        dependent = self.search(query.predicate)
-        to_resolve = dependent.conclusion
-        if len(dependent.premise) == 0:
-            for i, parameter in enumerate(to_resolve.variables):
-                if to_resolve.is_constant(parameter) and to_resolve.variables[i] != scope[query.variables[i]]:
-                    return False
-            return True
-        else:
-            for i, parameter in enumerate(to_resolve.variables):
-                if not to_resolve.is_constant(parameter):
-                    if query.is_constant(query.variables[i]):
-                        scope[parameter] = query.variables[i]
-                    else:
-                        scope[parameter] = scope[query.variables[i]]
+        dependents = self.search(query.predicate)
+        for dependent in dependents:
+            to_resolve = dependent.conclusion
+            if len(dependent.premise) == 0:
+                for i, parameter in enumerate(to_resolve.variables):
+                    if to_resolve.is_constant(parameter):
+                        if not query.is_constant(query.variables[i]):
+                            if parameter != scope[query.variables[i]]:
+                                return False
+                        else:
+                            if parameter != query.variables[i]:
+                                return False
+                return True
+            else:
+                resolved_scope = {}
+                for i, parameter in enumerate(to_resolve.variables):
+                    if not to_resolve.is_constant(parameter):
+                        if query.is_constant(query.variables[i]):
+                            resolved_scope[parameter] = query.variables[i]
+                        else:
+                            resolved_scope[parameter] = scope[query.variables[i]]
 
-            valid_scopes = {}
-            all_unknown_variables = set()
-            for i, premise in enumerate(dependent.premise):
-                new_scope = {}
-                valid_scopes[i] = []
-                unknown_arguments = []
-                for argument in premise.variables:
-                    if argument in scope and not premise.is_constant(argument):
-                        new_scope[argument] = scope[argument]
-                    else:
-                        unknown_arguments.append(argument)
-
-                for unknown_argument in unknown_arguments:
-                    all_unknown_variables.add(unknown_argument)
-
-                if len(unknown_arguments) == 0:
-                    is_valid = self.validate(premise, new_scope)
-                else:
+                valid_scopes = {}
+                all_unknown_variables = set()
+                is_valid = False
+                for i, premise in enumerate(dependent.premise):
                     is_valid = False
-                    for scope in self.generate_scope_for_unknowns(unknown_arguments, new_scope):
-                        is_valid = self.validate(premise, scope)
-                        if is_valid:
-                            valid_scopes[i].append(scope)
+                    new_scope = {}
+                    valid_scopes[i] = []
+                    unknown_arguments = []
+                    for argument in premise.variables:
+                        if not premise.is_constant(argument):
+                            if argument in resolved_scope:
+                                new_scope[argument] = resolved_scope[argument]
+                            else:
+                                unknown_arguments.append(argument)
 
-                # some premise was not valid for any assignments
-                if not is_valid:
-                    return False
+                    for unknown_argument in unknown_arguments:
+                        all_unknown_variables.add(unknown_argument)
 
-            # see if there is some assignment of variables that satisfy all premise
-            return self.variables_valid(valid_scopes, all_unknown_variables)
+                    if len(unknown_arguments) == 0:
+                        if self.validate(premise, new_scope):
+                            is_valid = True
+                            valid_scopes[i].append(new_scope)
+                    else:
+                        for generated_scope in self.generate_scope_for_unknowns(unknown_arguments, new_scope):
+                            if self.validate(premise, generated_scope):
+                                is_valid = True
+                                valid_scopes[i].append(generated_scope)
+
+                    # some premise was not valid for any assignments
+                    if not is_valid:
+                        break
+
+                # see if there is some assignment of variables that satisfy all premise
+                if is_valid and self.variables_valid(valid_scopes, all_unknown_variables):
+                    return True
+            return False
 
     def generate_scope_for_unknowns(self, unknown_arguments, scope):
-        generated_scope = scope.copy()
+        scopes = []
         all_constants = self.kb.constants
         combinations = product(all_constants, repeat=len(unknown_arguments))
         for combination in combinations:
+            generated_scope = scope.copy()
             for i, unknown_argument in enumerate(unknown_arguments):
                 generated_scope[unknown_argument] = combination[i]
-            yield generated_scope
+            scopes.append(generated_scope)
+        return scopes
 
     def search(self, predicate):
-        for knowledge in self.kb.knowledges:
-            if knowledge.conclusion.predicate == predicate:
-                return knowledge
-        return None
+        return filter(lambda knowledge: knowledge.conclusion.predicate == predicate, self.kb.knowledges)
 
     def variables_valid(self, valid_scopes, variables):
-        if len(valid_scopes.keys()) == 1:
+        if len(valid_scopes.keys()) == 1 or len(variables) == 0:
             return True
-        combinations = product(valid_scopes)
+        combinations = product(*valid_scopes.values())
         for assignment in combinations:
-            variable_assignment = []
+            variable_assignment = {}
+            for variable in variables:
+                variable_assignment[variable] = []
+
             for variable in variables:
                 for scope in assignment:
-                    variable_assignment.append(scope[variable])
-            if all_same(variable_assignment):
+                    if variable in scope:
+                        variable_assignment[variable].append(scope[variable])
+            if assignment_valid(variable_assignment):
                 return True
 
         return False
