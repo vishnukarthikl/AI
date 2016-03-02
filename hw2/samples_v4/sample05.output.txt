@@ -1,6 +1,6 @@
 Ask: Aunt(Jane, Shelly)
-Ask: ~Man(Jane)
-True: ~Man(Jane)
+Ask: Woman(Jane)
+True: Woman(Jane)
 Ask: Siblings(Jane, _)
 Ask: Parent(_, Jane)
 True: Parent(Kevin, Jane)
