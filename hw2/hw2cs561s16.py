@@ -123,16 +123,11 @@ class InferenceResolver:
         for dependent in dependents:
             to_resolve = dependent.conclusion
             if len(dependent.premise) == 0:
-                for i, parameter in enumerate(to_resolve.variables):
-                    if to_resolve.is_constant(parameter):
-                        if not query.is_constant(query.variables[i]):
-                            if parameter != scope[query.variables[i]]:
-                                return False
-                        else:
-                            if parameter != query.variables[i]:
-                                return False
-                return True
+                return self.validate_final_sentence(query, scope, to_resolve)
             else:
+                if not self.variables_value_align(query, to_resolve, scope):
+                    continue
+
                 resolved_scope = self.resolve_variables(query, to_resolve, scope)
                 valid_scopes = [{}]
                 for i, premise in enumerate(dependent.premise):
@@ -162,6 +157,28 @@ class InferenceResolver:
                     return True
 
         return False
+
+    def validate_final_sentence(self, query, scope, final_sentence):
+        for i, parameter in enumerate(final_sentence.variables):
+            if final_sentence.is_constant(parameter):
+                if not query.is_constant(query.variables[i]):
+                    if parameter != scope[query.variables[i]]:
+                        return False
+                else:
+                    if parameter != query.variables[i]:
+                        return False
+        return True
+
+    def variables_value_align(self, query, to_resolve, scope):
+        for i, parameter in enumerate(to_resolve.variables):
+            if to_resolve.is_constant(parameter):
+                if query.is_constant(query.variables[i]):
+                    if parameter != query.variables[i]:
+                        return False
+                else:
+                    if parameter != scope[query.variables[i]]:
+                        return False
+        return True
 
     def resolve_variables(self, query, to_resolve, scope):
         resolved_scope = {}
