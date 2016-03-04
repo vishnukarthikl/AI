@@ -3,6 +3,17 @@ import sys
 from itertools import chain, imap, product
 
 
+class Logger:
+    def __init__(self):
+        self.output = []
+
+    def log(self, line):
+        if len(self.output) == 0:
+            self.output.append(line)
+        elif self.output[-1] != line:
+            self.output.append(line)
+
+
 def flatmap(f, items):
     return list(chain.from_iterable(imap(f, items)))
 
@@ -124,6 +135,7 @@ def remove(list, items_to_remove):
 class InferenceResolver:
     def __init__(self, knowledge_base):
         self.kb = knowledge_base
+        self.logger = Logger()
 
     def resolve(self, queries):
         can_resolve = False
@@ -132,7 +144,7 @@ class InferenceResolver:
             query = queries[0]
             # if conclusion has variable then try all values
             if query.has_variables():
-                print stringify([query], {}, "Ask", [])
+                self.logger.log(stringify([query], {}, "Ask", []))
                 for constant in kb.constants:
                     scope = {}
                     for variable in query.variables:
@@ -140,22 +152,22 @@ class InferenceResolver:
                             scope[variable] = constant
                     can_resolve = self.validate(query, scope, scope.keys())
                     if can_resolve:
-                        print stringify([query], scope, str(True), [])
+                        self.logger.log(stringify([query], scope, str(True), []))
                         return True
             else:
-                print stringify([query], {}, "Ask", [])
+                self.logger.log(stringify([query], {}, "Ask", []))
                 can_resolve = self.validate(query, {}, [])
                 if can_resolve:
-                    print stringify([query], {}, str(can_resolve), [])
+                    self.logger.log(stringify([query], {}, str(can_resolve), []))
                 return can_resolve
         else:
-            print stringify(queries, {}, "Ask", [])
+            self.logger.log(stringify(queries, {}, "Ask", []))
             for query in queries:
                 can_resolve = self.validate(query, {}, [])
                 if not can_resolve:
-                    print stringify(queries, {}, str(False), [])
+                    self.logger.log(stringify(queries, {}, str(False), []))
                     return False
-            print stringify(queries, {}, str(True), [])
+            self.logger.log(stringify(queries, {}, str(True), []))
             return True
         return can_resolve
 
@@ -179,31 +191,30 @@ class InferenceResolver:
                     is_valid = False
                     updated_new_valid_scopes = []
                     for valid_scope in valid_scopes:
-                        print stringify([premise], valid_scope, "Ask",
-                                        self.change_variables(generated_variables, name_changes))
+                        self.logger.log(stringify([premise], valid_scope, "Ask",
+                                                  self.change_variables(generated_variables, name_changes)))
                         new_scope, unknown_arguments = self.combine_scope(valid_scope, resolved_scope, premise)
                         if len(unknown_arguments) == 0:
                             if self.validate(premise, new_scope,
                                              self.change_variables(generated_variables,
                                                                    name_changes) + unknown_arguments):
                                 is_valid = True
-                                print stringify([premise], new_scope, str(is_valid), [])
+                                self.logger.log(stringify([premise], new_scope, str(is_valid), []))
                                 remove(generated_variables, new_scope.keys())
                                 updated_new_valid_scopes.append(new_scope)
                             else:
                                 if len(generated_variables) == 0:
-                                    print stringify([premise], new_scope, str(False),
-                                                    self.change_variables(generated_variables, name_changes))
-                                if len(generated_variables) == 0:
-                                    print stringify([query], scope, "Ask",
-                                                    self.change_variables(generated_variables, valid_scope))
+                                    self.logger.log(stringify([premise], new_scope, str(False),
+                                                              self.change_variables(generated_variables, name_changes)))
+                                    self.logger.log(stringify([query], scope, "Ask",
+                                                              self.change_variables(generated_variables, name_changes)))
 
                         else:
                             for generated_scope in self.generate_scope_for_unknowns(unknown_arguments, new_scope):
                                 if self.validate(premise, generated_scope, generated_variables + unknown_arguments):
                                     is_valid = True
-                                    print stringify([premise], generated_scope, str(is_valid), [])
-                                    remove(generated_variables, new_scope.keys())
+                                    self.logger.log(stringify([premise], generated_scope, str(is_valid), []))
+                                    remove(generated_variables, generated_scope.keys())
                                     updated_new_valid_scopes.append(generated_scope)
                     # some premise was not valid for any assignments
                     if not is_valid:
@@ -288,6 +299,7 @@ class InferenceResolver:
 
 
 input_file = sys.argv[2]
+output_file = "output.txt"
 kb = KnowledgeBase()
 with open(input_file, 'r') as fin:
     query = to_sentences(fin.readline())
@@ -295,4 +307,9 @@ with open(input_file, 'r') as fin:
         kb.add_knowledge(Knowledge(fin.readline()))
 
 resolver = InferenceResolver(kb)
-print resolver.resolve(query)
+answer = resolver.resolve(query)
+with open(output_file, 'w') as f:
+    f.truncate()
+    for line in resolver.logger.output:
+        f.writelines(line + '\n')
+    f.writelines(str(answer))
