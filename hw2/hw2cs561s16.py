@@ -14,6 +14,31 @@ def strip(search):
     return map(lambda x: x.strip(), search)
 
 
+def is_constant(variable):
+    return variable[0].isupper()
+
+
+def stringify(sentences, scope, prefix, generated_variables):
+    result = prefix + ": "
+    for i, sentence in enumerate(sentences):
+        result += sentence.predicate + "("
+        for j, variable in enumerate(sentence.variables):
+            if is_constant(variable):
+                result += variable
+            else:
+                if variable in scope and variable not in generated_variables:
+                    result += scope[variable]
+                else:
+                    result += "_"
+            if j != len(sentence.variables) - 1:
+                result += ", "
+            else:
+                result += ")"
+        if i != len(sentences) - 1:
+            result += " && "
+    return result
+
+
 class Sentence:
     def __init__(self, s):
         self.s = s
@@ -90,59 +115,86 @@ def assignment_valid(variable_assignment):
     return True
 
 
+def remove(list, items_to_remove):
+    for to_remove in items_to_remove:
+        if to_remove in list:
+            list.remove(to_remove)
+
+
 class InferenceResolver:
     def __init__(self, knowledge_base):
         self.kb = knowledge_base
 
     def resolve(self, queries):
         can_resolve = False
+        # single conclusion to prove
         if len(queries) == 1:
             query = queries[0]
+            # if conclusion has variable then try all values
             if query.has_variables():
+                print stringify([query], {}, "Ask", [])
                 for constant in kb.constants:
                     scope = {}
                     for variable in query.variables:
                         if not query.is_constant(variable):
                             scope[variable] = constant
-                    can_resolve = self.validate(query, scope)
+                    can_resolve = self.validate(query, scope, scope.keys())
                     if can_resolve:
+                        print stringify([query], scope, str(True), [])
                         return True
             else:
-                return self.validate(query, {})
+                can_resolve = self.validate(query, {}, [])
+                if can_resolve:
+                    print stringify([query], {}, str(can_resolve), [])
+                return can_resolve
         else:
+            print stringify(queries, {}, "Ask", [])
             for query in queries:
-                can_resolve = self.validate(query, {})
+                can_resolve = self.validate(query, {}, [])
                 if not can_resolve:
+                    print stringify(queries, {}, str(False), [])
                     return False
+            print stringify(queries, {}, str(True), [])
             return True
         return can_resolve
 
-    def validate(self, query, scope):
+    def validate(self, query, scope, generated_variables):
         dependents = self.search(query.predicate)
         is_valid = False
         for dependent in dependents:
             to_resolve = dependent.conclusion
             if len(dependent.premise) == 0:
-                return self.validate_final_sentence(query, scope, to_resolve)
+                if not self.validate_final_sentence(query, scope, to_resolve):
+                    continue
+                else:
+                    return True
             else:
                 if not self.variables_value_align(query, to_resolve, scope):
                     continue
-
                 resolved_scope = self.resolve_variables(query, to_resolve, scope)
-                valid_scopes = [{}]
+                name_changes = self.variable_changes(query, to_resolve)
+                valid_scopes = [resolved_scope]
                 for i, premise in enumerate(dependent.premise):
                     is_valid = False
                     updated_new_valid_scopes = []
+                    print stringify([premise], valid_scopes[0], "Ask",
+                                    self.change_variables(generated_variables, name_changes))
                     for valid_scope in valid_scopes:
                         new_scope, unknown_arguments = self.combine_scope(valid_scope, resolved_scope, premise)
                         if len(unknown_arguments) == 0:
-                            if self.validate(premise, new_scope):
+                            if self.validate(premise, new_scope,
+                                             self.change_variables(generated_variables,
+                                                                   name_changes) + unknown_arguments):
                                 is_valid = True
+                                print stringify([premise], new_scope, str(is_valid), [])
+                                remove(generated_variables, new_scope.keys())
                                 updated_new_valid_scopes.append(new_scope)
                         else:
                             for generated_scope in self.generate_scope_for_unknowns(unknown_arguments, new_scope):
-                                if self.validate(premise, generated_scope):
+                                if self.validate(premise, generated_scope, generated_variables + unknown_arguments):
                                     is_valid = True
+                                    print stringify([premise], generated_scope, str(is_valid), [])
+                                    remove(generated_variables, new_scope.keys())
                                     updated_new_valid_scopes.append(generated_scope)
 
                     # some premise was not valid for any assignments
@@ -190,6 +242,14 @@ class InferenceResolver:
                     resolved_scope[parameter] = scope[query.variables[i]]
         return resolved_scope
 
+    def variable_changes(self, query, to_resolve):
+        variables = {}
+        for i, parameter in enumerate(to_resolve.variables):
+            if not to_resolve.is_constant(parameter) and not query.is_constant(query.variables[i]):
+                variables[query.variables[i]] = parameter
+
+        return variables
+
     def generate_scope_for_unknowns(self, unknown_arguments, scope):
         scopes = []
         combinations = product(set(self.kb.constants), repeat=len(unknown_arguments))
@@ -203,6 +263,7 @@ class InferenceResolver:
     def search(self, predicate):
         return filter(lambda knowledge: knowledge.conclusion.predicate == predicate, self.kb.knowledges)
 
+    # merge valid scope (found so far) and resolved scope (passed to it)
     def combine_scope(self, valid_scope, resolved_scope, premise):
         new_scope = valid_scope.copy()
         unknown_arguments = []
@@ -213,6 +274,9 @@ class InferenceResolver:
                 if argument not in new_scope:
                     unknown_arguments.append(argument)
         return new_scope, unknown_arguments
+
+    def change_variables(self, generated_variables, name_changes):
+        return map(lambda x: name_changes[x] if x in name_changes else x, generated_variables)
 
 
 input_file = sys.argv[2]
