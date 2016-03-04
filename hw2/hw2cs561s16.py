@@ -143,6 +143,7 @@ class InferenceResolver:
                         print stringify([query], scope, str(True), [])
                         return True
             else:
+                print stringify([query], {}, "Ask", [])
                 can_resolve = self.validate(query, {}, [])
                 if can_resolve:
                     print stringify([query], {}, str(can_resolve), [])
@@ -177,9 +178,9 @@ class InferenceResolver:
                 for i, premise in enumerate(dependent.premise):
                     is_valid = False
                     updated_new_valid_scopes = []
-                    print stringify([premise], valid_scopes[0], "Ask",
-                                    self.change_variables(generated_variables, name_changes))
                     for valid_scope in valid_scopes:
+                        print stringify([premise], valid_scope, "Ask",
+                                        self.change_variables(generated_variables, name_changes))
                         new_scope, unknown_arguments = self.combine_scope(valid_scope, resolved_scope, premise)
                         if len(unknown_arguments) == 0:
                             if self.validate(premise, new_scope,
@@ -189,6 +190,14 @@ class InferenceResolver:
                                 print stringify([premise], new_scope, str(is_valid), [])
                                 remove(generated_variables, new_scope.keys())
                                 updated_new_valid_scopes.append(new_scope)
+                            else:
+                                if len(generated_variables) == 0:
+                                    print stringify([premise], new_scope, str(False),
+                                                    self.change_variables(generated_variables, name_changes))
+                                if len(generated_variables) == 0:
+                                    print stringify([query], scope, "Ask",
+                                                    self.change_variables(generated_variables, valid_scope))
+
                         else:
                             for generated_scope in self.generate_scope_for_unknowns(unknown_arguments, new_scope):
                                 if self.validate(premise, generated_scope, generated_variables + unknown_arguments):
@@ -196,7 +205,6 @@ class InferenceResolver:
                                     print stringify([premise], generated_scope, str(is_valid), [])
                                     remove(generated_variables, new_scope.keys())
                                     updated_new_valid_scopes.append(generated_scope)
-
                     # some premise was not valid for any assignments
                     if not is_valid:
                         break
