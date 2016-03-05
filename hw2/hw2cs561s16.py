@@ -150,20 +150,20 @@ class InferenceResolver:
                     for variable in query.variables:
                         if not query.is_constant(variable):
                             scope[variable] = constant
-                    can_resolve = self.validate(query, scope, scope.keys())
+                    can_resolve = self.validate(query, scope, scope.keys(), [])
                     if can_resolve:
                         self.logger.log(stringify([query], scope, str(True), []))
                         return True
             else:
                 self.logger.log(stringify([query], {}, "Ask", []))
-                can_resolve = self.validate(query, {}, [])
+                can_resolve = self.validate(query, {}, [], [])
                 if can_resolve:
                     self.logger.log(stringify([query], {}, str(can_resolve), []))
                 return can_resolve
         else:
             self.logger.log(stringify(queries, {}, "Ask", []))
             for query in queries:
-                can_resolve = self.validate(query, {}, [])
+                can_resolve = self.validate(query, {}, [], [])
                 if not can_resolve:
                     self.logger.log(stringify(queries, {}, str(False), []))
                     return False
@@ -171,7 +171,7 @@ class InferenceResolver:
             return True
         return can_resolve
 
-    def validate(self, query, scope, generated_variables):
+    def validate(self, query, scope, generated_variables, processed_predicates):
         dependents = self.search(query.predicate)
         is_valid = False
         for dependent in dependents:
@@ -188,6 +188,8 @@ class InferenceResolver:
                 name_changes = self.variable_changes(query, to_resolve)
                 valid_scopes = [resolved_scope]
                 for i, premise in enumerate(dependent.premise):
+                    if premise.predicate in processed_predicates:
+                        continue
                     is_valid = False
                     updated_new_valid_scopes = []
                     for valid_scope in valid_scopes:
@@ -197,7 +199,8 @@ class InferenceResolver:
                         if len(unknown_arguments) == 0:
                             if self.validate(premise, new_scope,
                                              self.change_variables(generated_variables,
-                                                                   name_changes) + unknown_arguments):
+                                                                   name_changes) + unknown_arguments,
+                                             processed_predicates + [premise.predicate]):
                                 is_valid = True
                                 self.logger.log(stringify([premise], new_scope, str(is_valid), []))
                                 remove(generated_variables, new_scope.keys())
@@ -211,7 +214,8 @@ class InferenceResolver:
 
                         else:
                             for generated_scope in self.generate_scope_for_unknowns(unknown_arguments, new_scope):
-                                if self.validate(premise, generated_scope, generated_variables + unknown_arguments):
+                                if self.validate(premise, generated_scope, generated_variables + unknown_arguments,
+                                                 processed_predicates + [premise.predicate]):
                                     is_valid = True
                                     self.logger.log(stringify([premise], generated_scope, str(is_valid), []))
                                     remove(generated_variables, generated_scope.keys())
