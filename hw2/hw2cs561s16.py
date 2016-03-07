@@ -11,8 +11,10 @@ class Logger:
     def log(self, line):
         if len(self.output) == 0:
             self.output.append(line)
+            print line
         elif self.output[-1] != line:
             self.output.append(line)
+            print line
 
 
 def flatmap(f, items):
@@ -151,30 +153,46 @@ class InferenceResolver:
             for theta in self.fol_or(queries[0], {}):
                 if theta:
                     return True
-        else:
             return False
+        else:
+            for query in queries:
+                valid = False
+                for _ in self.fol_or(query, {}):
+                    valid = True
+                    break
+                if not valid:
+                    return False
+            return True
 
     def fol_or(self, goal, theta):
         rules = self.kb.fetch_rules(goal)
         rules = self.standardize(rules, goal, theta)
         self.logger.log(stringify(self.substitute(theta, goal), "Ask"))
+        valid = False
         for rule in rules:
-            # self.logger.log(stringify(self.substitute(theta, goal), "Ask"))
+            self.logger.log(stringify(self.substitute(theta, goal), "Ask"))
             for theta in self.fol_and(rule.premise, self.unify(rule.conclusion, goal, deepcopy(theta)),
                                       rule.conclusion):
+                valid = True
                 self.logger.log(stringify(self.substitute(theta, rule.conclusion), "True"))
                 yield theta
-        self.logger.log(stringify(self.substitute(theta, goal), "False"))
+        if not valid:
+            self.logger.log(stringify(self.substitute(theta, goal), "False"))
+
 
     def fol_and(self, goals, theta, parent):
         if len(goals) == 0:
             yield theta
         else:
             first, rest = goals[0], goals[1:]
+            valid = False
             for theta1 in self.fol_or(self.substitute(theta, first), deepcopy(theta)):
+                valid = True
                 for theta2 in self.fol_and(rest, deepcopy(theta1), parent):
                     yield theta2
-            self.logger.log(stringify(self.substitute(theta, parent), "Ask"))
+            if not valid:
+                self.logger.log(stringify(self.substitute(theta, first), "False"))
+                self.logger.log(stringify(self.substitute(theta, parent), "Ask"))
 
     def unify(self, x, y, theta):
         theta = deepcopy(theta)
@@ -223,7 +241,7 @@ class InferenceResolver:
                     variable_changes[conclusion_variable] = variable
                     rule.conclusion.variables[i] = variable
                 elif (is_variable(conclusion_variable) and conclusion_variable in theta) or (
-                    is_variable(conclusion_variable) and conclusion_variable in goal.variables):
+                            is_variable(conclusion_variable) and conclusion_variable in goal.variables):
                     rule.conclusion.variables[i] = self.generate_variable()
                     variable_changes[conclusion_variable] = rule.conclusion.variables[i]
 
