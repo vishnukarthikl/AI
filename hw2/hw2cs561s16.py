@@ -74,6 +74,20 @@ class Sentence:
     def is_fact(self):
         return len(self.predicate) == 0
 
+    def copy(self):
+        return deepcopy(self)
+
+    def are_variables_same(self, other):
+        return self.variables != other.variables
+
+    def unifiable_variables(self, other):
+        for i, this_variable in enumerate(self.variables):
+            that_variable = other.variables[i]
+            if this_variable != that_variable:
+                if is_constant(this_variable) and is_constant(that_variable):
+                    return False
+        return True
+
 
 def to_sentences(s):
     return map(lambda x: Sentence(x), strip(s.split('&&')))
@@ -95,7 +109,7 @@ class KnowledgeBase:
         for knowledge in self.knowledges:
             if self.can_unify(knowledge, query):
                 goals.append(knowledge)
-        return self.standardize(goals)
+        return deepcopy(goals)
 
     def can_unify(self, knowledge, query):
         if knowledge.conclusion.predicate == query.predicate:
@@ -107,31 +121,6 @@ class KnowledgeBase:
             return True
         else:
             return False
-
-    def standardize_all(self):
-        self.knowledges = self.standardize(self.knowledges)
-
-    def standardize(self, rules):
-        standardized_rules = []
-        for knowledge in rules:
-            variable_changes = {}
-            knowledge = deepcopy(knowledge)
-            for i, variable in enumerate(knowledge.conclusion.variables):
-                if is_variable(variable):
-                    if variable not in variable_changes:
-                        variable_changes[variable] = self.generate_variable()
-                    knowledge.conclusion.variables[i] = variable_changes[variable]
-
-            for premise in knowledge.premise:
-                for i, premise_variable in enumerate(premise.variables):
-                    if is_variable(premise_variable):
-                        if premise_variable not in variable_changes:
-                            variable_changes[premise_variable] = self.generate_variable()
-                        premise.variables[i] = variable_changes[premise_variable]
-
-            standardized_rules.append(knowledge)
-
-        return standardized_rules
 
     def generate_variable(self):
         self.random_variables += 1
@@ -175,78 +164,98 @@ class InferenceResolver:
         self.random_variables = 0
 
     def resolve(self, queries):
-        self.kb.standardize_all()
-        if len(queries) == 1:
-            query = queries[0]
-            for theta in self.fol_or(query, {}):
-                if theta:
-                    return True
-            return False
-        else:
-            for query in queries:
-                valid = False
-                for _ in self.fol_or(query, {}):
-                    valid = True
-                    self.logger.log(stringify(self.substitute({}, query), "True"))
-                    break
-                if not valid:
-                    return False
-            return True
+        for query in queries:
+            if not self.validate(query):
+                return False
+        return True
 
-    def fol_or(self, goal, theta):
+    def validate(self, query):
+        for unified_result_query in self.fol_or(query):
+            if unified_result_query is None:
+                self.logger.log(stringify(query, str(False)))
+                return False
+            else:
+                self.logger.log(stringify(unified_result_query, str(True)))
+                return True
+
+        self.logger.log(stringify(query, str(False)))
+        return False
+
+    def fol_or(self, goal):
         rules = self.kb.fetch_rules(goal)
-        self.logger.log(stringify(self.substitute(theta, goal), "Ask"))
-        valid = False
+        if len(rules) == 0:
+            self.logger.log(stringify(goal, "Ask"))
+            yield None
+
         for rule in rules:
-            self.logger.log(stringify(self.substitute(theta, goal), "Ask"))
-            for theta in self.fol_and(rule.premise, self.unify(rule.conclusion, goal, deepcopy(theta)),
-                                      rule.conclusion):
-                valid = True
-                self.logger.log(stringify(self.substitute(theta, rule.conclusion), "True"))
-                yield self.original_substituted_theta(theta, rule.conclusion)
-        if not valid:
-            self.logger.log(stringify(self.substitute(theta, goal), "False"))
+            self.logger.log(stringify(goal, "Ask"))
+            goal_copy = goal.copy()
+            if len(rule.premise) == 0:
+                scope = {}
+                ret = True
+                if rule.conclusion.are_variables_same(goal):
+                    for i, conclusion_variable in enumerate(rule.conclusion.variables):
+                        goal_variable = goal.variables[i]
+                        if conclusion_variable != goal_variable and is_variable(goal_variable):
+                            scope[goal_variable] = conclusion_variable
+                        elif conclusion_variable != goal_variable and is_constant(goal_variable):
+                            ret = False
+                    if not ret:
+                        continue
 
-    def fol_and(self, goals, theta, parent):
+                    for i, variables in enumerate(goal_copy.variables):
+                        if goal_copy.variables[i] in scope:
+                            goal_copy.variables[i] = scope[goal.variables[i]]
+                yield goal_copy
+            else:
+                unified_goal, unified_rule = self.unify(goal_copy, rule)
+                for scope in self.fol_and(unified_rule.premise):
+                    if scope is not None:
+                        rule_copy = deepcopy(unified_rule)
+                        rule_copy.conclusion = self.substitute(rule_copy.conclusion, scope)
+                        if unified_goal.unifiable_variables(rule_copy.conclusion):
+                            yield self.rewrite_query(rule_copy.conclusion, unified_goal)
+                    else:
+                        break
+
+    def fol_and(self, goals):
         if len(goals) == 0:
-            yield theta
+            yield {}
         else:
+            scope = {}
             first, rest = goals[0], goals[1:]
-            valid = False
-            for theta1 in self.fol_or(self.substitute(theta, first), deepcopy(theta)):
-                valid = True
-                for theta2 in self.fol_and(rest, deepcopy(theta1), parent):
-                    yield self.original_substituted_theta(theta2, parent)
-            if not valid:
-                self.logger.log(stringify(self.substitute(theta, first), "False"))
-                self.logger.log(stringify(self.substitute(theta, parent), "Ask"))
+            for result_query in self.fol_or(deepcopy(first)):
+                if result_query is None:
+                    self.logger.log(stringify(first, "False"))
+                    yield None
+                    return
+                else:
+                    self.logger.log(stringify(result_query, "True"))
+                    inner_scope = self.substitute_premise(rest, first, result_query)
+                    scope.update(inner_scope)
+                    for subMapO in self.fol_and(deepcopy(rest)):
+                        if subMapO is not None and len(subMapO) > 0:
+                            inner_scope.update(subMapO)
+                        if subMapO is None:
+                            break
+                        yield inner_scope
+            yield None
 
-    def original_substituted_theta(self, theta, succeeded_rule):
-        theta = deepcopy(theta)
-        standardized_variables = succeeded_rule.variables
-        for i, variable in enumerate(standardized_variables):
-            if is_variable(variable):
-                to_substitute = [k for k, v in theta.iteritems() if v == variable]
-                for substitution in to_substitute:
-                    theta[substitution] = theta[variable]
-        return theta
+    def unify(self, goal, rule):
+        goal, rule = deepcopy(goal), deepcopy(rule)
+        scope = {}
+        for i, goal_variable in enumerate(goal.variables):
+            rule_variable = rule.conclusion.variables[i]
+            if is_constant(goal_variable) and is_variable(rule_variable):
+                scope[rule_variable] = goal_variable
+                rule.conclusion.variables[i] = goal_variable
 
-    def unify(self, x, y, theta):
-        theta = deepcopy(theta)
-        if x.predicate != y.predicate:
-            return None
-        for i, x_variable in enumerate(x.variables):
-            y_variable = y.variables[i]
-            if is_constant(x_variable) and is_constant(y_variable) and x_variable != y_variable:
-                return None
-            elif is_variable(x_variable) and is_constant(y_variable) and x_variable not in theta:
-                theta[x_variable] = y_variable
-            elif is_variable(y_variable) and is_constant(x_variable) and y_variable not in theta:
-                theta[y_variable] = x_variable
-            elif is_variable(x_variable) and is_variable(y_variable) and y_variable not in theta:
-                theta[y_variable] = x_variable
+        for premise in rule.premise:
+            for i, pred_variable in enumerate(premise.variables):
+                if pred_variable in scope:
+                    premise.variables[i] = scope[pred_variable]
 
-        return theta
+        return goal, rule
 
     def replace_query(self, goal, query_sentence):
         replace_map = {}
@@ -256,19 +265,43 @@ class InferenceResolver:
             new_goal.conclusion.variables[i] = query_variable
             replace_map[variable] = query_variable
 
-        for predicate in new_goal.premise:
-            for i, variable in enumerate(predicate.variables):
+        for premise in new_goal.premise:
+            for i, variable in enumerate(premise.variables):
                 if variable in replace_map:
-                    predicate.variables[i] = replace_map[variable]
+                    premise.variables[i] = replace_map[variable]
 
         return new_goal
 
-    def substitute(self, theta, sentence):
+    def substitute(self, sentence, theta):
         substituted_sentence = deepcopy(sentence)
         for i, variable in enumerate(sentence.variables):
             if is_variable(variable) and variable in theta:
                 substituted_sentence.variables[i] = theta[variable]
         return substituted_sentence
+
+    def rewrite_query(self, conclusion, goal):
+        query = goal.copy()
+        for i, query_variable in enumerate(query.variables):
+            conclusion_variable = conclusion.variables[i]
+            if is_variable(query_variable) and is_constant(conclusion_variable):
+                query.variables[i] = conclusion_variable
+        return query
+
+    def substitute_premise(self, rest, first, query):
+        scope = {}
+        rest = deepcopy(rest)
+        for i, variables in enumerate(first.variables):
+            var = first.variables[i]
+            query_var = query.variables[i]
+            if is_variable(var) and is_constant(query_var):
+                scope[var] = query_var
+
+        for premise in rest:
+            for i, premise_variable in enumerate(premise.variables):
+                if premise_variable in scope:
+                    premise.variables[i] = scope[premise_variable]
+
+        return scope
 
 
 input_file = sys.argv[2]
