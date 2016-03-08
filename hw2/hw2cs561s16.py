@@ -83,6 +83,7 @@ class KnowledgeBase:
     def __init__(self):
         self.knowledges = []
         self.constants = []
+        self.random_variables = 0
 
     def add_knowledge(self, knowledge):
         self.knowledges.append(knowledge)
@@ -94,7 +95,7 @@ class KnowledgeBase:
         for knowledge in self.knowledges:
             if self.can_unify(knowledge, query):
                 goals.append(knowledge)
-        return goals
+        return self.standardize(goals)
 
     def can_unify(self, knowledge, query):
         if knowledge.conclusion.predicate == query.predicate:
@@ -106,6 +107,35 @@ class KnowledgeBase:
             return True
         else:
             return False
+
+    def standardize_all(self):
+        self.knowledges = self.standardize(self.knowledges)
+
+    def standardize(self, rules):
+        standardized_rules = []
+        for knowledge in rules:
+            variable_changes = {}
+            knowledge = deepcopy(knowledge)
+            for i, variable in enumerate(knowledge.conclusion.variables):
+                if is_variable(variable):
+                    if variable not in variable_changes:
+                        variable_changes[variable] = self.generate_variable()
+                    knowledge.conclusion.variables[i] = variable_changes[variable]
+
+            for premise in knowledge.premise:
+                for i, premise_variable in enumerate(premise.variables):
+                    if is_variable(premise_variable):
+                        if premise_variable not in variable_changes:
+                            variable_changes[premise_variable] = self.generate_variable()
+                        premise.variables[i] = variable_changes[premise_variable]
+
+            standardized_rules.append(knowledge)
+
+        return standardized_rules
+
+    def generate_variable(self):
+        self.random_variables += 1
+        return "a" + str(self.random_variables)
 
 
 class Knowledge:
@@ -144,13 +174,11 @@ class InferenceResolver:
         self.logger = Logger()
         self.random_variables = 0
 
-    def generate_variable(self):
-        self.random_variables += 1
-        return "z" + str(self.random_variables)
-
     def resolve(self, queries):
+        self.kb.standardize_all()
         if len(queries) == 1:
-            for theta in self.fol_or(queries[0], {}):
+            query = queries[0]
+            for theta in self.fol_or(query, {}):
                 if theta:
                     return True
             return False
@@ -159,6 +187,7 @@ class InferenceResolver:
                 valid = False
                 for _ in self.fol_or(query, {}):
                     valid = True
+                    self.logger.log(stringify(self.substitute({}, query), "True"))
                     break
                 if not valid:
                     return False
@@ -166,7 +195,6 @@ class InferenceResolver:
 
     def fol_or(self, goal, theta):
         rules = self.kb.fetch_rules(goal)
-        rules = self.standardize(rules, goal, theta)
         self.logger.log(stringify(self.substitute(theta, goal), "Ask"))
         valid = False
         for rule in rules:
@@ -175,10 +203,9 @@ class InferenceResolver:
                                       rule.conclusion):
                 valid = True
                 self.logger.log(stringify(self.substitute(theta, rule.conclusion), "True"))
-                yield theta
+                yield self.original_substituted_theta(theta, rule.conclusion)
         if not valid:
             self.logger.log(stringify(self.substitute(theta, goal), "False"))
-
 
     def fol_and(self, goals, theta, parent):
         if len(goals) == 0:
@@ -189,10 +216,20 @@ class InferenceResolver:
             for theta1 in self.fol_or(self.substitute(theta, first), deepcopy(theta)):
                 valid = True
                 for theta2 in self.fol_and(rest, deepcopy(theta1), parent):
-                    yield theta2
+                    yield self.original_substituted_theta(theta2, parent)
             if not valid:
                 self.logger.log(stringify(self.substitute(theta, first), "False"))
                 self.logger.log(stringify(self.substitute(theta, parent), "Ask"))
+
+    def original_substituted_theta(self, theta, succeeded_rule):
+        theta = deepcopy(theta)
+        standardized_variables = succeeded_rule.variables
+        for i, variable in enumerate(standardized_variables):
+            if is_variable(variable):
+                to_substitute = [k for k, v in theta.iteritems() if v == variable]
+                for substitution in to_substitute:
+                    theta[substitution] = theta[variable]
+        return theta
 
     def unify(self, x, y, theta):
         theta = deepcopy(theta)
@@ -206,6 +243,9 @@ class InferenceResolver:
                 theta[x_variable] = y_variable
             elif is_variable(y_variable) and is_constant(x_variable) and y_variable not in theta:
                 theta[y_variable] = x_variable
+            elif is_variable(x_variable) and is_variable(y_variable) and y_variable not in theta:
+                theta[y_variable] = x_variable
+
         return theta
 
     def replace_query(self, goal, query_sentence):
@@ -229,32 +269,6 @@ class InferenceResolver:
             if is_variable(variable) and variable in theta:
                 substituted_sentence.variables[i] = theta[variable]
         return substituted_sentence
-
-    def standardize(self, rules, goal, theta):
-        standardized_rules = []
-        for rule in rules:
-            variable_changes = {}
-            rule = deepcopy(rule)
-            for i, variable in enumerate(goal.variables):
-                conclusion_variable = rule.conclusion.variables[i]
-                if is_variable(variable) and is_variable(conclusion_variable) and conclusion_variable != variable:
-                    variable_changes[conclusion_variable] = variable
-                    rule.conclusion.variables[i] = variable
-                elif (is_variable(conclusion_variable) and conclusion_variable in theta) or (
-                            is_variable(conclusion_variable) and conclusion_variable in goal.variables):
-                    rule.conclusion.variables[i] = self.generate_variable()
-                    variable_changes[conclusion_variable] = rule.conclusion.variables[i]
-
-            for premise in rule.premise:
-                for i, premise_variable in enumerate(premise.variables):
-                    if premise_variable in goal.variables and premise_variable not in variable_changes:
-                        variable_changes[premise_variable] = self.generate_variable()
-                    if premise_variable in variable_changes:
-                        premise.variables[i] = variable_changes[premise_variable]
-
-            standardized_rules.append(rule)
-
-        return standardized_rules
 
 
 input_file = sys.argv[2]
