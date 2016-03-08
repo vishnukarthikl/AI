@@ -77,8 +77,8 @@ class Sentence:
     def copy(self):
         return deepcopy(self)
 
-    def are_variables_same(self, other):
-        return self.variables != other.variables
+    def are_variables_different(self, other):
+        return len(self.variables) == len(other.variables) and self.variables != other.variables
 
     def unifiable_variables(self, other):
         for i, this_variable in enumerate(self.variables):
@@ -189,18 +189,18 @@ class InferenceResolver:
 
         for rule in rules:
             self.logger.log(stringify(goal, "Ask"))
-            goal_copy = goal.copy()
             if len(rule.premise) == 0:
                 scope = {}
-                ret = True
-                if rule.conclusion.are_variables_same(goal):
+                goal_copy = goal.copy()
+                valid = True
+                if rule.conclusion.are_variables_different(goal):
                     for i, conclusion_variable in enumerate(rule.conclusion.variables):
                         goal_variable = goal.variables[i]
                         if conclusion_variable != goal_variable and is_variable(goal_variable):
                             scope[goal_variable] = conclusion_variable
                         elif conclusion_variable != goal_variable and is_constant(goal_variable):
-                            ret = False
-                    if not ret:
+                            valid = False
+                    if not valid:
                         continue
 
                     for i, variables in enumerate(goal_copy.variables):
@@ -208,11 +208,11 @@ class InferenceResolver:
                             goal_copy.variables[i] = scope[goal.variables[i]]
                 yield goal_copy
             else:
-                unified_goal, unified_rule = self.unify(goal_copy, rule)
-                for scope in self.fol_and(unified_rule.premise):
-                    if scope is not None:
+                unified_goal, unified_rule = self.unify(goal, rule)
+                for scope2 in self.fol_and(unified_rule.premise):
+                    if scope2 is not None:
                         rule_copy = deepcopy(unified_rule)
-                        rule_copy.conclusion = self.substitute(rule_copy.conclusion, scope)
+                        rule_copy.conclusion = self.substitute(rule_copy.conclusion, scope2)
                         if unified_goal.unifiable_variables(rule_copy.conclusion):
                             yield self.rewrite_query(rule_copy.conclusion, unified_goal)
                     else:
@@ -231,14 +231,15 @@ class InferenceResolver:
                     return
                 else:
                     self.logger.log(stringify(result_query, "True"))
-                    inner_scope = self.substitute_premise(rest, first, result_query)
-                    scope.update(inner_scope)
-                    for subMapO in self.fol_and(deepcopy(rest)):
-                        if subMapO is not None and len(subMapO) > 0:
-                            inner_scope.update(subMapO)
-                        if subMapO is None:
+                    rest_copy = deepcopy(rest)
+                    _scope = self.substitute_premise(rest_copy, first, result_query)
+                    scope.update(_scope)
+                    for __scope in self.fol_and(rest_copy):
+                        if __scope is not None and len(__scope) > 0:
+                            _scope.update(__scope)
+                        if __scope is None:
                             break
-                        yield inner_scope
+                        yield _scope
             yield None
 
     def unify(self, goal, rule):
@@ -257,39 +258,23 @@ class InferenceResolver:
 
         return goal, rule
 
-    def replace_query(self, goal, query_sentence):
-        replace_map = {}
-        new_goal = deepcopy(goal)
-        for i, variable in enumerate(goal.conclusion.variables):
-            query_variable = query_sentence.variables[i]
-            new_goal.conclusion.variables[i] = query_variable
-            replace_map[variable] = query_variable
-
-        for premise in new_goal.premise:
-            for i, variable in enumerate(premise.variables):
-                if variable in replace_map:
-                    premise.variables[i] = replace_map[variable]
-
-        return new_goal
-
     def substitute(self, sentence, theta):
         substituted_sentence = deepcopy(sentence)
         for i, variable in enumerate(sentence.variables):
-            if is_variable(variable) and variable in theta:
+            if variable in theta:
                 substituted_sentence.variables[i] = theta[variable]
         return substituted_sentence
 
     def rewrite_query(self, conclusion, goal):
-        query = goal.copy()
-        for i, query_variable in enumerate(query.variables):
+        goal = goal.copy()
+        for i, query_variable in enumerate(goal.variables):
             conclusion_variable = conclusion.variables[i]
             if is_variable(query_variable) and is_constant(conclusion_variable):
-                query.variables[i] = conclusion_variable
-        return query
+                goal.variables[i] = conclusion_variable
+        return goal
 
     def substitute_premise(self, rest, first, query):
         scope = {}
-        rest = deepcopy(rest)
         for i, variables in enumerate(first.variables):
             var = first.variables[i]
             query_var = query.variables[i]
