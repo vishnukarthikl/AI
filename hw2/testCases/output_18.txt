@@ -1,0 +1,11 @@
+Ask: Daughter(Shelly, May)
+Ask: Woman(Shelly)
+True: Woman(Shelly)
+Ask: Parent(May, Shelly)
+True: Parent(May, Shelly)
+True: Daughter(Shelly, May)
+Ask: Daughter(Joe, May)
+Ask: Woman(Joe)
+False: Woman(Joe)
+False: Daughter(Joe, May)
+False

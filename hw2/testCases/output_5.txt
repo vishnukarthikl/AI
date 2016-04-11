@@ -1,0 +1,5 @@
+Ask: Tells(Anakin, Tree, Sidious)
+Ask: Resource(Tree)
+False: Resource(Tree)
+False: Tells(Anakin, Tree, Sidious)
+False

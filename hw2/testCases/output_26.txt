@@ -1,0 +1,3 @@
+Ask: Diagnosis(Tom, Uninfected)
+False: Diagnosis(Tom, Uninfected)
+False

@@ -1,0 +1,10 @@
+Ask: Faster(Bob, _)
+Ask: Cheetah(Bob)
+False: Cheetah(Bob)
+Ask: Faster(Bob, _)
+Ask: Buffalo(Bob)
+True: Buffalo(Bob)
+Ask: Pig(_)
+True: Pig(Pat)
+True: Faster(Bob, Pat)
+True

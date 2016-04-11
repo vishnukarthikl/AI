@@ -1,0 +1,7 @@
+Ask: Diagnosis(John, Infected)
+Ask: Works(John, Aidagency)
+True: Works(John, Aidagency)
+Ask: HasTraveled(John, Timbuktu)
+True: HasTraveled(John, Timbuktu)
+True: Diagnosis(John, Infected)
+True

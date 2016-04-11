@@ -1,0 +1,13 @@
+Ask: Diagnosis(John, Infected)
+Ask: LostWeight(John)
+Ask: HasSymptom(John, Diarrhea)
+True: HasSymptom(John, Diarrhea)
+True: LostWeight(John)
+Ask: Diagnosis(John, LikelyInfected)
+Ask: HasTraveled(John, Tiberia)
+True: HasTraveled(John, Tiberia)
+Ask: HasFever(John)
+True: HasFever(John)
+True: Diagnosis(John, LikelyInfected)
+True: Diagnosis(John, Infected)
+True

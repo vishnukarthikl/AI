@@ -1,0 +1,9 @@
+Ask: Works(Alice, Aidagency)
+Ask: HasSymptom(_, Fever)
+Ask: Diagnosis(_, Fever)
+True: Diagnosis(John, Fever)
+True: HasSymptom(John, Fever)
+Ask: HasTraveled(John, Timbuktu)
+True: HasTraveled(John, Timbuktu)
+True: Works(Alice, Aidagency)
+True

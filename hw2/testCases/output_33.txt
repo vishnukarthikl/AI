@@ -1,0 +1,5 @@
+Ask: A(_, B)
+Ask: B(B)
+False: B(B)
+False: A(_, B)
+False

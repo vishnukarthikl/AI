@@ -1,0 +1,7 @@
+Ask: Siblings(Jane, _)
+Ask: Parent(_, Jane)
+True: Parent(Kevin, Jane)
+Ask: Parent(Kevin, _)
+True: Parent(Kevin, Peter)
+True: Siblings(Jane, Peter)
+True

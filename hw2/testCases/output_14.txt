@@ -1,0 +1,9 @@
+Ask: Aunt(Jane, Joe)
+Ask: Woman(Jane)
+True: Woman(Jane)
+Ask: Siblings(Jane, _)
+Ask: Parent(_, Jane)
+False: Parent(_, Jane)
+False: Siblings(Jane, _)
+False: Aunt(Jane, Joe)
+False

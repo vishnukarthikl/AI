@@ -1,0 +1,11 @@
+Ask: B(A, B)
+Ask: A(A, _)
+True: A(A, C)
+Ask: A(C, B)
+False: A(C, B)
+Ask: A(A, _)
+True: A(A, D)
+Ask: A(D, B)
+True: A(D, B)
+True: B(A, B)
+True

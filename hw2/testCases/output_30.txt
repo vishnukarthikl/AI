@@ -1,0 +1,13 @@
+Ask: A(_)
+Ask: B(B)
+Ask: A(B)
+Ask: C(C)
+True: C(C)
+Ask: D(D)
+Ask: B(D)
+True: B(D)
+True: D(D)
+True: A(B)
+True: B(B)
+True: A(A)
+True

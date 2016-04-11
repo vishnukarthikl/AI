@@ -1,0 +1,7 @@
+Ask: Diagnosis(John, Uninfected)
+Ask: LostWeight(_)
+True: LostWeight(Tom)
+Ask: HasSymptom(Tom, Cough)
+True: HasSymptom(Tom, Cough)
+True: Diagnosis(John, Uninfected)
+True
