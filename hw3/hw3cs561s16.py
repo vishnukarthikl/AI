@@ -1,5 +1,6 @@
 import re
 import sys
+from decimal import Decimal
 
 
 class QueryEvent():
@@ -91,8 +92,9 @@ class BayesNet:
         self.nodes[node.name] = node
 
     def process(self, q):
-        return self.enumerate_all(self.nodes.copy(), q.to_calculate + q.given) / self.enumerate_all(self.nodes.copy(),
-                                                                                                    q.given)
+        answer = self.enumerate_all(self.nodes.copy(), q.to_calculate + q.given) / self.enumerate_all(self.nodes.copy(),
+                                                                                                      q.given)
+        return Decimal(str(answer)).quantize(Decimal('.01'))
 
     def convert(self, str):
         if str == "+":
@@ -205,4 +207,5 @@ for node in nodes:
     bayesNet.add(node)
 
 result = map(lambda q: bayesNet.process(q), queries)
-print result
+for r in result:
+    print r
