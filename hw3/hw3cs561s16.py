@@ -1,4 +1,3 @@
-import itertools
 import re
 import sys
 
@@ -45,13 +44,13 @@ class ProbabiltyQuery():
 
 class Node():
     def __init__(self, lines):
-        self.given = []
+        self.parents = []
         self.probability = {True: {}, False: {}}
         self.set_names(lines)
         self.populate_probability(lines[1:])
 
     def populate_probability(self, lines):
-        if self.is_standalone():
+        if self.is_root():
             self.probability[True] = float(lines[0])
             self.probability[False] = 1 - float(lines[0])
         else:
@@ -63,23 +62,25 @@ class Node():
                 self.probability[False][occurence] = 1 - p
 
     def get_probability(self, occurence):
+        if self.is_root():
+            return {'': self.probability[occurence]}
         return self.probability[occurence]
 
-    def is_standalone(self):
-        return len(self.given) == 0
+    def is_root(self):
+        return len(self.parents) == 0
 
     def set_names(self, lines):
         event = lines[0]
         split = event.split("|")
         self.name = split[0].strip()
         if len(split) > 1:
-            self.given = split[1].strip().split(" ")
+            self.parents = split[1].strip().split(" ")
 
     def __str__(self):
-        if len(self.given) == 0:
+        if len(self.parents) == 0:
             return self.name
         else:
-            return self.name + "|" + str(self.given)
+            return self.name + "|" + str(self.parents)
 
 
 class BayesNet:
@@ -90,32 +91,69 @@ class BayesNet:
         self.nodes[node.name] = node
 
     def process(self, q):
-        if not q.given:
-            return reduce(lambda acc, t: acc * self.calculate(t.name, t.occurence), q.to_calculate, 1)
-
-    def generate_bool_table(self, size):
-        permutation = list(itertools.product(*["-+"] * size))
-        return map(lambda x: ''.join(map(str, x)), permutation)
-
-    def calculate(self, event, occurence):
-        node = self.nodes[event]
-        if node.is_standalone():
-            return node.get_probability(occurence)
-        probability_table = node.get_probability(occurence)
-        result = 0
-        for parent_occurence, parent_probability in probability_table.iteritems():
-            product = parent_probability
-            combinations = zip(list(parent_occurence), node.given)
-            for combination in combinations:
-                product *= self.calculate(combination[1], self.convert(combination[0]))
-            result += product
-        return result
+        return self.enumerate_all(self.nodes.copy(), q.to_calculate + q.given) / self.enumerate_all(self.nodes.copy(),
+                                                                                                    q.given)
 
     def convert(self, str):
         if str == "+":
             return True
         else:
             return False
+
+    def enumerate_all(self, vars, evidence, event=None):
+        if len(vars) == 0:
+            return 1.0
+        if not event:
+            event = vars.keys()[0]
+        start_node = self.nodes[event]
+        parents = start_node.parents
+
+        for p in parents:
+            if not self.event_in_evidence(p, evidence):
+                return self.enumerate_all(vars, evidence, p)
+
+        result = 0
+        if self.event_in_evidence(event, evidence):
+            occurence = self.event_occurence(event, evidence)
+            key = self.convert_to_key(parents, evidence)
+            cp = start_node.get_probability(occurence)[key]
+            result = cp * self.enumerate_all(self.remove(vars, start_node), evidence)
+        else:
+            for possible_occurence in [True, False]:
+                cp = start_node.get_probability(possible_occurence)[self.convert_to_key(parents, evidence)]
+                result += cp * self.enumerate_all(self.remove(vars, start_node),
+                                                  self.add_evidence(evidence, start_node, possible_occurence))
+        return result
+
+    def event_in_evidence(self, event, evidence):
+        for e in evidence:
+            if e.name == event:
+                return True
+        return False
+
+    def event_occurence(self, event, evidence):
+        for e in evidence:
+            if e.name == event:
+                return e.occurence
+        return False
+
+    def convert_to_key(self, parents, evidence):
+        return ''.join(map(lambda parent: self.convert_to_str(self.event_occurence(parent, evidence)), parents))
+
+    def convert_to_str(self, bool):
+        if bool:
+            return "+"
+        else:
+            return "-"
+
+    def remove(self, vars, node):
+        copied = vars.copy()
+        if node.name in copied:
+            del copied[node.name]
+        return copied
+
+    def add_evidence(self, evidence, event, occurence):
+        return evidence + [QueryEvent(event.name + "=" + self.convert_to_str(occurence))]
 
 
 class Event:
