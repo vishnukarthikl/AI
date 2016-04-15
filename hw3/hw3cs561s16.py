@@ -1,29 +1,16 @@
+import itertools
 import re
 import sys
 from decimal import Decimal
 
 
-class QueryEvent():
-    def __init__(self, str):
-        self.str = str
-        split = str.split("=")
-        self.name = split[0].strip()
-        occurence = split[1].strip()
-        if occurence == "+":
-            self.occurence = True
-        else:
-            self.occurence = False
-
-    def __str__(self):
-        return str
-
-
-class ProbabiltyQuery():
-    def __init__(self, query):
-        self.query = query
+class Query():
+    def __init__(self, regex, query):
+        self.query = ""
         self.to_calculate = []
         self.given = []
-        m = re.search(r"P\((.*?)\)", query)
+        self.query = query
+        m = re.search(regex, query)
         q = m.group(1)
         split = q.split("|")
         event, given = split[0], split[1:]
@@ -41,6 +28,34 @@ class ProbabiltyQuery():
 
     def __str__(self):
         return self.query
+
+
+class QueryEvent():
+    def __init__(self, str):
+        self.str = str
+        split = str.split("=")
+        self.name = split[0].strip()
+        occurence = split[1].strip()
+        if occurence == "+":
+            self.occurence = True
+        else:
+            self.occurence = False
+
+    def __str__(self):
+        return str
+
+
+class ProbabiltyQuery(Query):
+    def __init__(self, query):
+        Query.__init__(self, r"P\((.*?)\)", query)
+
+    def __str__(self):
+        return self.query
+
+
+class ExpectedUtilityQuery(Query):
+    def __init__(self, query):
+        Query.__init__(self, r"EU\((.*?)\)", query)
 
 
 class Node():
@@ -101,6 +116,10 @@ class BayesNet:
     def add(self, node):
         self.nodes[node.name] = node
 
+    def generate_bool_table(self, size):
+        permutation = list(itertools.product(*["-+"] * size))
+        return map(lambda x: ''.join(map(str, x)), permutation)
+
     def process(self, q):
         if isinstance(q, ProbabiltyQuery):
             answer = self.enumerate_all(self.nodes.copy(), q.to_calculate + q.given) / self.enumerate_all(
@@ -108,7 +127,15 @@ class BayesNet:
                     q.given)
             return Decimal(str(answer)).quantize(Decimal('.01'))
         elif isinstance(q, ExpectedUtilityQuery):
-            return 0
+            total_utility = 0
+            for occurence, value in utility.utility.iteritems():
+                evidence_combination = map(lambda x: QueryEvent(x[1] + "=" + x[0]), zip(occurence, utility.events))
+                if self.check(evidence_combination, q.to_calculate + q.given):
+                    p1 = self.enumerate_all(self.nodes.copy(), evidence_combination + q.to_calculate + q.given)
+                    p2 = self.enumerate_all(self.nodes.copy(), q.given + q.to_calculate)
+                    probability = p1 / p2
+                    total_utility += probability * value
+            return int(round(total_utility))
 
     def convert(self, str):
         if str == "+":
@@ -174,6 +201,20 @@ class BayesNet:
     def add_utility(self, utility):
         self.utility = utility
 
+    def check(self, combination, given):
+        for c in combination:
+            event = self.get_event(c.name, given)
+            if event:
+                if event.occurence != c.occurence:
+                    return False
+        return True
+
+    def get_event(self, event, evidence):
+        for e in evidence:
+            if e.name == event:
+                return e
+        return None
+
 
 class Event:
     def __init__(self, probability, happened):
@@ -231,31 +272,6 @@ class Utility:
             self.utility[occurence] = value
 
 
-class ExpectedUtilityQuery:
-    def __init__(self, query):
-        self.query = query
-        self.to_calculate = []
-        self.given = []
-        m = re.search(r"EU\((.*?)\)", query)
-        q = m.group(1)
-        split = q.split("|")
-        event, given = split[0], split[1:]
-        self.set_to_calculate(event)
-        self.set_given(given)
-
-    def set_to_calculate(self, event):
-        split = event.split(", ")
-        self.to_calculate = map(lambda s: QueryEvent(s), split)
-
-    def set_given(self, given):
-        if given:
-            split = given[0].split(", ")
-            self.given = map(lambda s: QueryEvent(s), split)
-
-    def __str__(self):
-        return self.query
-
-
 def convert_to_query(query):
     if query.startswith('P'):
         return ProbabiltyQuery(query)
@@ -277,9 +293,9 @@ node_lines, lines = get_till(lines, "******")
 nodes = map(lambda n: Node(n), get_nodes(node_lines)[0])
 for node in nodes:
     bayesNet.add(node)
-
-utility = Utility(get_utility(lines))
-bayesNet.add_utility(utility)
+if lines:
+    utility = Utility(get_utility(lines))
+    bayesNet.add_utility(utility)
 
 result = map(lambda q: bayesNet.process(q), queries)
 with open('output.txt', 'w') as f:
