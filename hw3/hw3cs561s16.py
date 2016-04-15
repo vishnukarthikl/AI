@@ -1,4 +1,5 @@
 import itertools
+import operator
 import re
 import sys
 from decimal import Decimal
@@ -30,32 +31,39 @@ class Query():
         return self.query
 
 
-class QueryEvent():
-    def __init__(self, str):
-        self.str = str
-        split = str.split("=")
-        self.name = split[0].strip()
-        occurence = split[1].strip()
-        if occurence == "+":
-            self.occurence = True
-        else:
-            self.occurence = False
-
-    def __str__(self):
-        return str
-
-
 class ProbabiltyQuery(Query):
     def __init__(self, query):
         Query.__init__(self, r"P\((.*?)\)", query)
-
-    def __str__(self):
-        return self.query
 
 
 class ExpectedUtilityQuery(Query):
     def __init__(self, query):
         Query.__init__(self, r"EU\((.*?)\)", query)
+
+
+class MaximumExpectedUtilityQuery(Query):
+    def __init__(self, query):
+        Query.__init__(self, r"MEU\((.*?)\)", query)
+
+
+class QueryEvent():
+    def __init__(self, str):
+        self.str = str
+        split = str.split("=")
+        self.name = split[0].strip()
+        if len(split) == 2:
+            occurence = split[1].strip()
+        else:
+            occurence = "*"
+        if occurence == "+":
+            self.occurence = True
+        elif occurence == '-':
+            self.occurence = False
+        else:
+            self.occurence = None
+
+    def __str__(self):
+        return str
 
 
 class Node():
@@ -127,15 +135,36 @@ class BayesNet:
                     q.given)
             return Decimal(str(answer)).quantize(Decimal('.01'))
         elif isinstance(q, ExpectedUtilityQuery):
-            total_utility = 0
-            for occurence, value in utility.utility.iteritems():
-                evidence_combination = map(lambda x: QueryEvent(x[1] + "=" + x[0]), zip(occurence, utility.events))
-                if self.check(evidence_combination, q.to_calculate + q.given):
-                    p1 = self.enumerate_all(self.nodes.copy(), evidence_combination + q.to_calculate + q.given)
-                    p2 = self.enumerate_all(self.nodes.copy(), q.given + q.to_calculate)
-                    probability = p1 / p2
-                    total_utility += probability * value
+            return self.find_expected_utility(q)
+        else:
+            expected_utilities = self.find_all_expected_utility(q)
+            max_expected_utility = max(expected_utilities.iteritems(), key=operator.itemgetter(1))
+            return " ".join(max_expected_utility[0]) + " " + str(int(round(max_expected_utility[1])))
+
+    def find_all_expected_utility(self, q):
+        results = {}
+        occurence_combination = self.generate_bool_table(len(q.to_calculate))
+        for combination in occurence_combination:
+            event_occurence = zip(combination, q.to_calculate)
+            modified_query = ExpectedUtilityQuery(
+                    "EU(" + ', '.join(map(lambda e: e[1].name + "=" + e[0], event_occurence)) + ")")
+            modified_query.given = q.given
+            results[combination] = self.find_expected_utility(modified_query, False)
+        return results
+
+    def find_expected_utility(self, q, should_round=True):
+        total_utility = 0
+        for occurence, value in utility.utility.iteritems():
+            evidence_combination = map(lambda x: QueryEvent(x[1] + "=" + x[0]), zip(occurence, utility.events))
+            if self.check(evidence_combination, q.to_calculate + q.given):
+                p1 = self.enumerate_all(self.nodes.copy(), evidence_combination + q.to_calculate + q.given)
+                p2 = self.enumerate_all(self.nodes.copy(), q.given + q.to_calculate)
+                probability = p1 / p2
+                total_utility += probability * value
+        if should_round:
             return int(round(total_utility))
+        else:
+            return total_utility
 
     def convert(self, str):
         if str == "+":
@@ -277,6 +306,8 @@ def convert_to_query(query):
         return ProbabiltyQuery(query)
     elif query.startswith('EU'):
         return ExpectedUtilityQuery(query)
+    else:
+        return MaximumExpectedUtilityQuery(query)
 
 
 input_file = sys.argv[2]
@@ -301,5 +332,4 @@ result = map(lambda q: bayesNet.process(q), queries)
 with open('output.txt', 'w') as f:
     f.truncate()
     for r in result:
-        print r
         f.write(r.__str__() + "\n")
