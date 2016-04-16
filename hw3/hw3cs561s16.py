@@ -27,9 +27,6 @@ class Query():
             split = given[0].split(", ")
             self.given = map(lambda s: QueryEvent(s), split)
 
-    def __str__(self):
-        return self.query
-
 
 class ProbabiltyQuery(Query):
     def __init__(self, query):
@@ -61,9 +58,6 @@ class QueryEvent():
             self.occurence = False
         else:
             self.occurence = None
-
-    def __str__(self):
-        return str
 
 
 class Node():
@@ -104,17 +98,8 @@ class Node():
         if len(split) > 1:
             self.parents = split[1].strip().split(" ")
 
-    def __str__(self):
-        if len(self.parents) == 0:
-            return self.name
-        else:
-            return self.name + "|" + str(self.parents)
-
     def set_type(self, lines):
-        if lines[1] == 'decision':
-            self.decision = True
-        else:
-            self.decision = False
+        self.decision = lines[1] == 'decision'
 
 
 class BayesNet:
@@ -165,12 +150,6 @@ class BayesNet:
             return int(round(total_utility))
         else:
             return total_utility
-
-    def convert(self, str):
-        if str == "+":
-            return True
-        else:
-            return False
 
     def enumerate_all(self, vars, evidence, event=None):
         if len(vars) == 0:
@@ -243,18 +222,6 @@ class BayesNet:
             if e.name == event:
                 return e
         return None
-
-
-class Event:
-    def __init__(self, probability, happened):
-        self.probability = probability
-        self.happened = happened
-
-    def probability(self, happen):
-        if happen and self.happened or (not happen and not self.happened):
-            return self.probability
-        else:
-            return 1 - self.probability
 
 
 def get_till(lines, delimiter):
