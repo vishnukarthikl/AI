@@ -2,7 +2,6 @@ import itertools
 import operator
 import re
 import sys
-from decimal import Decimal
 
 
 class Query():
@@ -115,16 +114,20 @@ class BayesNet:
 
     def process(self, q):
         if isinstance(q, ProbabiltyQuery):
-            answer = self.enumerate_all(self.nodes.copy(), q.to_calculate + q.given) / self.enumerate_all(
-                    self.nodes.copy(),
-                    q.given)
-            return Decimal(str(answer)).quantize(Decimal('.01'))
+            p1 = self.enumerate_all(self.nodes.copy(), q.to_calculate + q.given)
+            if q.given:
+                p2 = self.enumerate_all(self.nodes.copy(), q.given)
+            else:
+                p2 = 1.0
+            answer = p1 / p2
+            return format(answer + 0.000000000000001, '.2f')
         elif isinstance(q, ExpectedUtilityQuery):
             return self.find_expected_utility(q)
         else:
             expected_utilities = self.find_all_expected_utility(q)
             max_expected_utility = max(expected_utilities.iteritems(), key=operator.itemgetter(1))
-            return " ".join(max_expected_utility[0]) + " " + str(int(round(max_expected_utility[1])))
+            value = max_expected_utility[1]
+            return " ".join(max_expected_utility[0]) + " " + str(int(value + 0.5))
 
     def find_all_expected_utility(self, q):
         results = {}
@@ -143,11 +146,14 @@ class BayesNet:
             evidence_combination = map(lambda x: QueryEvent(x[1] + "=" + x[0]), zip(occurence, utility.events))
             if self.check(evidence_combination, q.to_calculate + q.given):
                 p1 = self.enumerate_all(self.nodes.copy(), evidence_combination + q.to_calculate + q.given)
-                p2 = self.enumerate_all(self.nodes.copy(), q.given + q.to_calculate)
+                if q.given:
+                    p2 = self.enumerate_all(self.nodes.copy(), q.given + q.to_calculate)
+                else:
+                    p2 = 1.0
                 probability = p1 / p2
                 total_utility += probability * value
         if should_round:
-            return int(round(total_utility))
+            return int(round(total_utility + 0.00000000001))
         else:
             return total_utility
 
